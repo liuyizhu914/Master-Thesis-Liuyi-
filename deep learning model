@@ -1,0 +1,97 @@
+import tensorflow as tf
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Input, Dropout, Conv1D, LSTM, Flatten, Dense
+
+# parameters
+
+batch_size = 16
+epoch_num = 10
+
+# deep learning model
+model = Sequential()
+
+# Input Dropout
+model.add(Dropout(0.8, input_shape=(96,1)))
+
+# 3 CNN Layers
+model.add(Conv1D(filters=64, kernel_size=16 , activation='relu'))
+model.add(Conv1D(filters=64, kernel_size=16 , activation='relu'))
+model.add(Conv1D(filters=64, kernel_size=16 , activation='relu'))
+
+# 2 LSTM Layers
+model.add(LSTM(128, return_sequences=True))
+model.add(LSTM(128))
+
+# 3 FC Layers
+model.add(Dense(256, activation='relu'))
+model.add(Dense(128, activation='relu'))
+model.add(Dense(128, activation='relu'))
+
+# output
+model.add(Dense(units=6 , activation='linear'))
+
+# model compile
+model.compile(optimizer='adam', loss='mean_squared_error')
+
+# summary
+model.summary()
+
+import numpy as np
+import math
+
+input_data = np.loadtxt('input1_1.csv', delimiter=',')
+output_data = np.loadtxt('output1_1.csv', delimiter=',')
+
+print(input_data.shape)
+print(output_data.shape)
+
+train_input = input_data[0:4000,:]
+train_output = output_data[0:4000,:]
+eva_input = input_data[4000:,:]
+eva_output = output_data[4000:,:]
+
+# train model
+from tensorflow.keras.callbacks import ModelCheckpoint
+checkpoint = ModelCheckpoint("model_checkpoint_1.h5", save_best_only=True)
+history = model.fit(x = train_input, y = train_output, epochs = 200, batch_size = 16, validation_split=0.3, callbacks=[checkpoint])
+train_loss = history.history['loss']
+val_loss = history.history['val_loss']
+
+# plot train loss and validation loss
+import matplotlib.pyplot as plt
+x_plt = range(1, len(train_loss) + 1)
+plt.plot(x_plt, train_loss, label='train_loss')
+plt.plot(x_plt, val_loss, label='validation_loss')
+plt.title('loss in training')
+plt.xlabel('epoch')
+plt.ylabel('loss')
+plt.legend()
+plt.show()
+
+# evaluation
+eva_predict = model.predict(eva_input)
+# calibration evaluation for IMU 1
+eva_score1 = np.zeros((len(eva_predict) , 1))
+# calibration evaluation for IMU 2
+eva_score2 = np.zeros((len(eva_predict) , 1))
+
+for i in range(0,len(eva_predict)):
+    eva_score1[i,:] = (1 - np.dot(eva_output[i,0:3],eva_predict[i,0:3]/(np.linalg.norm(eva_predict[i,0:3]))))*0.5
+    eva_score2[i,:] = (1 - np.dot(eva_output[i,3:6],eva_predict[i,3:6]/(np.linalg.norm(eva_predict[i,3:6]))))*0.5
+
+# plot evaluation result
+import matplotlib.pyplot as plt
+x_plt_eva = range(1, len(eva_score1) + 1)
+plt.plot(x_plt_eva, eva_score1, label='IMU 1')
+plt.plot(x_plt_eva, eva_score2, label='IMU 2')
+plt.title('evaluation result')
+plt.xlabel('evaluation datapoint')
+plt.ylabel('loss(0-1)')
+plt.legend()
+plt.show()
+
+# calculate accuarcy
+acc_1 = (1 - np.sum(eva_score1)/len(eva_score1)) * 100
+acc_2 = (1 - np.sum(eva_score2)/len(eva_score2)) * 100
+print('accuarcy for IMU 1 calibration is ', acc_1, '%' )
+print('accuarcy for IMU 2 calibration is ', acc_2 ,'%' )
