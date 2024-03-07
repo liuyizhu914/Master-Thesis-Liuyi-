@@ -1,0 +1,8 @@
+# define loss function
+def loss_cos_sim(y_true, y_pred):
+    #loss1 = (1 - np.dot(y_true[0:3],y_pred[0:3]/(np.linalg.norm(y_pred[0:3]))))*0.25
+    #loss2 = (1 - np.dot(y_true[3:6],y_pred[3:6]/(np.linalg.norm(y_pred[3:6]))))*0.25
+    loss1 = (1 - tf.reduce_sum(tf.multiply(y_true[:,0:3], y_pred[:,0:3] / tf.linalg.norm(y_pred[:,0:3])))) * 0.25
+    loss2 = (1 - tf.reduce_sum(tf.multiply(y_true[:,3:6], y_pred[:,3:6] / tf.linalg.norm(y_pred[:,3:6])))) * 0.25
+    total_loss = loss1 + loss2
+    return total_loss
