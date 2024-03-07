@@ -1,0 +1,59 @@
+import numpy as np
+import math
+
+sliding_window_len = 16
+num=5000       # define the number of datapoints
+h=0.02        # define the sampling rate
+#exp_time=num*h    # calculate total time(s)
+
+data = np.zeros((num * sliding_window_len , 6))
+alpha = np.zeros((num * sliding_window_len ,1))
+
+# generate gyroscope measurement for IMU1
+for j in range(0, 3):
+    for i in range(1, num * sliding_window_len):
+        data[i, j] = round(np.random.uniform(data[i-1, j] - 2, data[i-1, j] + 2),2)
+        data[i, j] = np.clip(data[i, j], -10, 10)
+
+for k in range(1,num * sliding_window_len):
+    data[k, 3] = round(np.random.uniform(data[k-1, 3] - 2, data[k-1, 3] + 2) ,2)
+    data[k, 3] = round(np.clip(data[k,3],-min(10,np.sqrt((data[k,0])**2+(data[k,2])**2)),min(10,np.sqrt((data[k,0])**2+(data[k,2])**2))),2)-0.1*math.copysign(1,data[k,3])
+    data[k, 5] = math.copysign(1,data[k, 2])* round(np.sqrt((data[k,0])**2+(data[k,2])**2-(data[k,3])**2) ,2)
+    data[k, 4] = round(np.random.uniform(data[k-1, 4] - 2, data[k-1, 4] + 2) ,2)
+    alpha[k,0] = alpha[k-1,0] +h*(data[k,1]-data[k,4])
+    while alpha[k,0] < 0 or alpha[k,0] > 2.62:
+        data[k, 4] = round(np.random.uniform(-10, 10) ,2)
+        alpha[k, 0] = alpha[k-1,0] +h*(data[k,1]-data[k,4])
+
+data_total = data.reshape((num, sliding_window_len, 6))
+# rotate data from segment frame to IMU segment
+import random
+from scipy.spatial.transform import Rotation
+
+same_num = 10
+output_cal = np.zeros((num, 3, 2))
+output_cal[:, 1, : ] = 1
+for i in range(0, int(num/same_num)):
+    matrix1_I2S = np.zeros((3,3))
+    matrix2_I2S = np.zeros((3,3))
+    quater1_I2S = Rotation.random().as_quat()
+    quater2_I2S = Rotation.random().as_quat()
+    matrix1_I2S = Rotation.from_quat(quater1_I2S).as_matrix()
+    matrix2_I2S = Rotation.from_quat(quater2_I2S).as_matrix()
+    for j in range(i * same_num, (i+1) * same_num):
+        data_total[j , : , 0: 3] = np.transpose(np.dot(matrix1_I2S, np.transpose(data_total[j , : , 0: 3])))
+        data_total[j , : , 3: 6] = np.transpose(np.dot(matrix2_I2S, np.transpose(data_total[j , : , 3: 6])))
+        output_cal[j , : , 0] = np.dot(matrix1_I2S , output_cal[j , : , 0])
+        output_cal[j , : , 1] = np.dot(matrix2_I2S , output_cal[j , : , 1])
+
+# flatten input and output, 
+input_data = data_total.reshape((num,sliding_window_len*6))
+output_data = np.zeros((num, 3, 2))
+for i in range(0,num):
+    for j in range(0,2):
+        output_data[i,:,j] = output_cal[i,:,j]/(np.linalg.norm(output_cal[i,:,j]))
+output_data = output_data.reshape((num, 6),order='F')
+
+# save input and output data as csv file
+np.savetxt('input1.csv', input_data, delimiter=',')
+np.savetxt('output1.csv', output_data, delimiter=',')
