@@ -1,0 +1,25 @@
+# define loss function
+def loss_cos_sim(y_true, y_pred):
+    
+    w_y = 0.25      # weight for difference between ground truth and predict output
+    
+    # loss for difference between ground truth and predict output
+    loss_y1 = 1 - tf.reduce_sum(tf.multiply(y_true[:,0:3], y_pred[:,0:3] / tf.linalg.norm(y_pred[:,0:3])))
+    loss_y2 = 1 - tf.reduce_sum(tf.multiply(y_true[:,3:6], y_pred[:,3:6] / tf.linalg.norm(y_pred[:,3:6])))
+    return w_y * (loss_y1 + loss_y2)
+
+def loss_con(inputs, y_true):
+    w_con = 1/16
+    sliding_len = 16
+    # loss for kinematic constraints
+    loss_con = 0
+    y_true_1 = tf.reshape(y_true[:,0:3], shape=(3,))
+    y_true_2 = tf.reshape(y_true[:,3:6], shape=(3,))
+    print(y_true[:,0:3].shape)
+    print(inputs[:,6:9,:].shape)
+    for i in range(0, sliding_len):
+        input_1 = tf.reshape(inputs[:,i*6:i*6+3,:], shape=(3,))
+        input_2 = tf.reshape(inputs[:,i*6+3:(i+1)*6,:], shape=(3,))
+        loss_con = loss_con + tf.abs(tf.norm(tf.linalg.cross(input_1, y_true_1),ord = 2) - tf.norm(tf.linalg.cross(input_2, y_true_2),ord = 2))
+
+    return w_con * loss_con
